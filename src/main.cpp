@@ -1,6 +1,11 @@
-#include "unexpected.h"
+#include "expected.h"
+#include <iostream>
+
 int main()
 {
-  auto a =  ik::av::nullopt;
+  auto a =  gb::optional<int>(3);
+
+  std::cout << a.value() << std::endl;
+
   return 0;
 }

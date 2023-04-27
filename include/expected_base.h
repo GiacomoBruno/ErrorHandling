@@ -3,7 +3,7 @@
 #include <optional>
 #include "unexpected.h"
 
-namespace ik::av{
+namespace gb{
 
 namespace detail
 {
@@ -54,7 +54,7 @@ namespace detail
 #pragma region SMF CONTROL
 
     template <class Base>
-    struct not_trivially_copiable : base { // non-trivial copy construction facade
+    struct not_trivially_copiable : Base { // non-trivial copy construction facade
         using Base::Base;
 
         not_trivially_copiable() = default;
@@ -68,15 +68,15 @@ namespace detail
     };
 
     template <class base, class... Args>
-    using control_copy = conditional_t<
+    using control_copy = std::conditional_t<
         std::conjunction_v<std::is_copy_constructible<Args>..., std::negation<std::conjunction<std::is_trivially_copy_constructible<Args>...>>>,
-        _Non_trivial_copy<base>, base>;
+        not_trivially_copiable<base>, base>;
 
 
     template <class Base, class... Args>
     struct not_trivially_movable : control_copy<Base, Args...> { // non-trivial move construction facade
-        using Mybase = control_copy<Base, Args...>;
-        using Mybase::Mybase;
+        using MyBase = control_copy<Base, Args...>;
+        using MyBase::MyBase;
 
         not_trivially_movable()                         = default;
         not_trivially_movable(const not_trivially_movable&) = default;
@@ -89,7 +89,7 @@ namespace detail
     };
 
     template <class Base, class... Args>
-    using control_move = conditional_t<
+    using control_move = std::conditional_t<
         std::conjunction_v<std::is_move_constructible<Args>..., std::negation<std::conjunction<std::is_trivially_move_constructible<Args>...>>>,
         not_trivially_movable<Base, Args...>, control_copy<Base, Args...>>;
 
@@ -134,8 +134,8 @@ namespace detail
 
     template <class Base, class... Args>
     struct not_trivally_move_assignable : control_copy_assign<Base, Args...> { // non-trivial move assignment facade
-        using Mybase = _SMF_control_copy_assign<_Base, Args...>;
-        using Mybase::Mybase;
+        using MyBase = control_copy_assign<Base, Args...>;
+        using MyBase::MyBase;
 
         not_trivally_move_assignable()                                               = default;
         not_trivally_move_assignable(const not_trivally_move_assignable&)            = default;
@@ -143,16 +143,16 @@ namespace detail
         not_trivally_move_assignable& operator=(const not_trivally_move_assignable&) = default;
 
         constexpr not_trivally_move_assignable& operator=(not_trivally_move_assignable&& _That) noexcept(
-            noexcept(Mybase::_Assign_from(static_cast<Base&&>(_That)))) {
-            Mybase::_Assign_from(static_cast<Base&&>(_That));
+            noexcept(MyBase::_Assign_from(static_cast<Base&&>(_That)))) {
+            MyBase::_Assign_from(static_cast<Base&&>(_That));
             return *this;
         }
     };
 
     template <class Base, class... Args>
-    struct deleted_move_assignment : control_copy_assign<_Base, Args...> { // deleted move assignment facade
-        using Mybase = control_copy_assign<Base, Args...>;
-        using Mybase::Mybase;
+    struct deleted_move_assignment : control_copy_assign<Base, Args...> { // deleted move assignment facade
+        using MyBase = control_copy_assign<Base, Args...>;
+        using MyBase::MyBase;
 
         deleted_move_assignment()                                          = default;
         deleted_move_assignment(const deleted_move_assignment&)            = default;
@@ -190,7 +190,7 @@ struct expected_destruct_base<T,E>
     constexpr expected_destruct_base() noexcept : m_dummy{}, m_has_value{false} {} //initialize an empty expected
 
     template <class... Args>
-    constexpr explicit _Optional_destruct_base(std::in_place_t, Args&&... args) noexcept(
+    constexpr explicit expected_destruct_base(std::in_place_t, Args&&... args) noexcept(
         std::is_nothrow_constructible_v<T, Args...>)
         : m_value(std::forward<Args>(args)...), m_has_value{true} {} // initialize contained value with args...
 
@@ -235,7 +235,7 @@ struct expected_construct_base : expected_destruct_base<T, E>
 {};
 
 template<class T, class E>
-    requires std::is_void_v<E>
+    requires std::is_void_v<E> && (!std::is_void_v<T>)
 struct expected_construct_base<T, E> : expected_destruct_base<T,E>
 {
     using expected_destruct_base<T,E>::expected_destruct_base;

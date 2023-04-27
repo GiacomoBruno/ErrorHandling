@@ -3,14 +3,14 @@
 #include <optional>
 #include "expected_base.h"
 
-namespace ik::av
+namespace gb
 {
 
 template<class T, class E>
     requires std::is_void_v<E>
 struct expected<T, E> : private detail::control<detail::expected_construct_base<T,E>, T>
 {
-    using Mybase = detail::control<detail::expected_construct_base<T,E>, T>;
+    using MyBase = detail::control<detail::expected_construct_base<T,E>, T>;
 
 //this is equivalent to a std::optional
     static_assert(!(std::is_same_v<std::remove_cv_t<T>, nullopt_t> || std::is_same_v<std::remove_cv_t<T>, std::in_place_t>),
@@ -28,23 +28,23 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
     template <class... Args>
         requires std::is_constructible_v<T, Args>
     constexpr explicit expected(std::in_place_t, Args&&... args) noexcept(std::is_nothrow_constructible_v<T, Args...>)
-        : Mybase(std::in_place, std::forward<Args>(args)...) {}
+        : MyBase(std::in_place, std::forward<Args>(args)...) {}
 
     template <class Elem, class... Args>
         requires std::is_constructible_v<T, std::initializer_list<Elem>&, Args>
     constexpr explicit expected(std::in_place_t, std::initializer_list<Elem> _Ilist, Args&&... args) noexcept(
         std::is_nothrow_constructible_v<T, std::initializer_list<Elem>&, Args...>) // strengthened
-        : Mybase(std::in_place, _Ilist, std::forward<Args>(args)...) {}
+        : MyBase(std::in_place, _Ilist, std::forward<Args>(args)...) {}
 
     template <class T2>
-    using _AllowDirectConversion = std::bool_constant<std::conjunction_v<std::negation<std::is_same<_Remove_cvref_t<T2>, expected>>,
-        std::negation<std::is_same<_Remove_cvref_t<T2>, std::in_place_t>>, std::is_constructible<T, T2>>>;
+    using _AllowDirectConversion = std::bool_constant<std::conjunction_v<std::negation<std::is_same<std::remove_cv_t<std::remove_reference_t<T2>>, expected>>,
+        std::negation<std::is_same<std::remove_cv_t<std::remove_reference_t<T2>>, std::in_place_t>>, std::is_constructible<T, T2>>>;
 
     template <class T2 = T>
         requires _AllowDirectConversion<T2>::value
     constexpr explicit(!std::is_convertible_v<T2, T>)
-        expected(T2&& _Right) noexcept(is_nothrow_constructible_v<T, T2>) // strengthened
-        : _Mybase(std::in_place, std::forward<T2>(_Right)) {}
+        expected(T2&& _Right) noexcept(std::is_nothrow_constructible_v<T, T2>) // strengthened
+        : MyBase(std::in_place, std::forward<T2>(_Right)) {}
 
     template <class T2>
     struct _AllowUnwrapping : std::bool_constant<!std::disjunction_v<std::is_same<T, T2>, std::is_constructible<T, expected<T2, E>&>,
@@ -91,7 +91,7 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
     template <class T2>
     struct _AllowUnwrappingAssignment
         : std::bool_constant<!std::disjunction_v<std::is_same<T, T2>, std::is_assignable<T&, expected<T2, E>&>,
-              std::is_assignable<T&, const expected<T2,E>&>, std::is_assignable<T&, const expected<T2>>,
+              std::is_assignable<T&, const expected<T2,E>&>, std::is_assignable<T&, const expected<T2, E>>,
               std::is_assignable<T&, expected<T2,E>>>> {};
 
     template <class T2>
@@ -125,12 +125,12 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
     constexpr T& emplace(Args&&... args) noexcept(
         std::is_nothrow_constructible_v<T, Args...>) /* strengthened */ {
         reset();
-        return this->_Construct(std::forward<_Types>(args)...);
+        return this->_Construct(std::forward<Args>(args)...);
     }
 
     template <class Elem, class... Args>
         requires std::is_constructible_v<T, std::initializer_list<Elem>&, Args...>
-    constexpr T& emplace(std::initializer_list<Elem> _Ilist, Args&&... _Args) noexcept(
+    constexpr T& emplace(std::initializer_list<Elem> _Ilist, Args&&... args) noexcept(
         std::is_nothrow_constructible_v<T, std::initializer_list<Elem>&, Args...>) /* strengthened */ {
         reset();
         return this->_Construct(_Ilist, std::forward<Args>(args)...);
@@ -167,7 +167,7 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
         return std::addressof(this->_Value);
     }
 
-    using Mybase::operator*;
+    using MyBase::operator*;
 
     constexpr explicit operator bool() const noexcept {
         return this->m_has_value;
@@ -178,21 +178,21 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
 
     [[nodiscard]] constexpr const T& value() const& {
         if (!this->m_has_value) {
-            throw std::bad_expected_access{};
+            throw gb::bad_expected_access{};
         }
 
         return this->m_value;
     }
     [[nodiscard]] constexpr T& value() & {
         if (!this->m_has_value) {
-            throw std::bad_expected_access{};
+            throw gb::bad_expected_access{};
         }
 
         return this->m_value;
     }
     [[nodiscard]] constexpr T&& value() && {
         if (!this->m_has_value) {
-            throw std::bad_expected_access{};
+            throw gb::bad_expected_access{};
         }
 
         return std::move(this->m_value);
@@ -200,7 +200,7 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
 
     [[nodiscard]] constexpr const T&& value() const&& {
         if (!this->m_has_value) {
-            throw std::bad_expected_access{};
+            throw gb::bad_expected_access{};
         }
 
         return std::move(this->m_value);
@@ -217,7 +217,7 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
             return this->m_value;
         }
 
-        return static_cast<remove_cv_t<T>>(std::forward<T2>(_Right));
+        return static_cast<std::remove_cv_t<T>>(std::forward<T2>(_Right));
     }
     template <class T2>
     [[nodiscard]] constexpr std::remove_cv_t<T> value_or(T2&& _Right) && {
@@ -230,12 +230,12 @@ struct expected<T, E> : private detail::control<detail::expected_construct_base<
             return std::move(this->m_value);
         }
 
-        return static_cast<remove_cv_t<T>>(std::forward<T2>(_Right));
+        return static_cast<std::remove_cv_t<T>>(std::forward<T2>(_Right));
     }
 
 
 
-    using Mybase::reset;
+    using MyBase::reset;
 
 
 };
@@ -354,7 +354,7 @@ template <class T1, std::three_way_comparable_with<T1> T2>
 
 
 template <class _Ty>
-using _Enable_if_bool_convertible = enable_if_t<is_convertible_v<_Ty, bool>, int>;
+using _Enable_if_bool_convertible = std::enable_if_t<std::is_convertible_v<_Ty, bool>, int>;
 
 template <class _Lhs, class _Rhs>
 using _Enable_if_comparable_with_equal =
@@ -484,7 +484,7 @@ template <class T1, class T2>
         return *_Left <=> _Right;
     }
 
-    return strong_ordering::less;
+    return std::strong_ordering::less;
 }
 
 
@@ -509,22 +509,9 @@ requires std::is_constructible_v<T, Args...>
 template <class T, class Elem, class... Args>
     requires std::is_constructible_v<T, std::initializer_list<Elem>&, Args...>
 [[nodiscard]] constexpr expected<T, void> make_optional(std::initializer_list<Elem> _Ilist, Args&&... args) noexcept(
-    noexcept(expected<T, void>{std::in_place, _Ilist, std::forward<_Types>(_Args)...})) /* strengthened */ {
-    return expected<T, void>{std::in_place, _Ilist, std::forward<_Types>(_Args)...};
+    noexcept(expected<T, void>{std::in_place, _Ilist, std::forward<Args>(args)...})) /* strengthened */ {
+    return expected<T, void>{std::in_place, _Ilist, std::forward<Args>(args)...};
 }
-
-template <class T>
-struct ::std::hash<expected<T, void>>
-    : _Conditionally_enabled_hash<optional<_Ty>, is_default_constructible_v<hash<remove_const_t<_Ty>>>> {
-    static size_t _Do_hash(const optional<_Ty>& _Opt) noexcept(_Is_nothrow_hashable<remove_const_t<_Ty>>::value) {
-        constexpr size_t _Unspecified_value = 0;
-        if (_Opt) {
-            return hash<remove_const_t<_Ty>>{}(*_Opt);
-        }
-
-        return _Unspecified_value;
-    }
-};
 
 
 }
