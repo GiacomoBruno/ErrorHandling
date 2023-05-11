@@ -1,13 +1,13 @@
-#include "expect.h"
+#include "expected.h"
 #include <iostream>
 
 int main()
 {
   int n = 4;
-  auto a = expect<int, void>(n);
-  auto b = expect<int, float>(3);
-  auto c = expect<void, int>(value_v);
-  auto d = expect<void, void>(value_v);
+  auto a = expected<int, void>(n);
+  auto b = expected<int, float>(3);
+  auto c = expected<void, int>(success);
+  auto d = expected<void, void>(success);
 
   std::cout << a.and_then([](int n) { return n + 2; }).value() << std::endl;
   std::cout << b.and_then([](int n) { return n+4;}).value() << std::endl;

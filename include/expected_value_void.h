@@ -1,36 +1,38 @@
-
 #pragma once
-#include "expect_base.h"
+#include <type_traits>
+#include "expected_base.h"
+#include "expected_monadic_operations.h"
+
+namespace gb{
 
 template<class T, class E>
 requires (!std::is_void_v<T>) && (std::is_void_v<E>)
-struct expect<T,E>
+struct expected<T,E>
 {
 
     #pragma region constructors
 
     #pragma region default empty/copy/move constructors
 
-    constexpr expect() noexcept(std::is_nothrow_default_constructible_v<T>) // strengthened
+    constexpr expected() noexcept(std::is_nothrow_default_constructible_v<T>) // strengthened
         requires std::is_default_constructible_v<T>
         : m_has_value(true)
     {
         std::construct_at(std::addressof(m_value_error.m_value));
     }
 
-    constexpr expect(empty_error_t) noexcept // strengthened
-        requires std::is_default_constructible_v<E>
+    constexpr expected(unexpect_t) noexcept // strengthened
         : m_has_value(false)
     {}
 
-    constexpr expect(const expect &) = delete;
+    constexpr expected(const expected &) = delete;
 
-    constexpr expect(const expect &)
+    constexpr expected(const expected &)
         requires(std::is_copy_constructible_v<T> &&
                  std::is_trivially_copy_constructible_v<T>)
     = default;
 
-    constexpr expect(const expect &other) noexcept(std::is_nothrow_copy_constructible_v<T>) // strengthened
+    constexpr expected(const expected &other) noexcept(std::is_nothrow_copy_constructible_v<T>) // strengthened
         requires(std::is_copy_constructible_v<T> && !std::is_trivially_copy_constructible_v<T>)
         : m_has_value(other.m_has_value)
     {
@@ -40,11 +42,11 @@ struct expect<T,E>
         }
     }
 
-    constexpr expect(expect &&)
+    constexpr expected(expected &&)
         requires(std::is_move_constructible_v<T> && std::is_trivially_move_constructible_v<T>)
     = default;
 
-    constexpr expect(expect &&other) noexcept(std::is_nothrow_move_constructible_v<T>)
+    constexpr expected(expected &&other) noexcept(std::is_nothrow_move_constructible_v<T>)
         requires(std::is_move_constructible_v<T> && !std::is_trivially_move_constructible_v<T>)
         : m_has_value(other.m_has_value)
     {
@@ -61,7 +63,7 @@ struct expect<T,E>
     template <class _Up>
         requires detail::can_convert_void_error<T, _Up, const _Up &>::value
     constexpr explicit(!std::is_convertible_v<const _Up &, T>)
-        expect(const expect<_Up, void> &other) noexcept(std::is_nothrow_constructible_v<T, const _Up &>) // strengthened
+        expected(const expected<_Up, void> &other) noexcept(std::is_nothrow_constructible_v<T, const _Up &>) // strengthened
         : m_has_value(other.m_has_value)
     {
         if (m_has_value)
@@ -73,7 +75,7 @@ struct expect<T,E>
     template <class _Up>
         requires detail::can_convert_void_error<T, _Up, _Up>::value
     constexpr explicit(!std::is_convertible_v<_Up, T>)
-        expect(expect<_Up, void> &&other) noexcept(std::is_nothrow_constructible_v<T, _Up>) // strengthened
+        expected(expected<_Up, void> &&other) noexcept(std::is_nothrow_constructible_v<T, _Up>) // strengthened
         : m_has_value(other.m_has_value)
     {
         if (m_has_value)
@@ -85,10 +87,10 @@ struct expect<T,E>
     #pragma endregion
 
     template <class _Up = T>
-        requires(!std::is_same_v<std::remove_cvref_t<_Up>, std::in_place_t> && !std::is_same_v<expect, std::remove_cvref_t<_Up>> &&
+        requires(!std::is_same_v<std::remove_cvref_t<_Up>, std::in_place_t> && !std::is_same_v<expected, std::remove_cvref_t<_Up>> &&
                  !is_unexpect_v<std::remove_cvref_t<_Up>> && std::is_constructible_v<T, _Up>)
     constexpr explicit(!std::is_convertible_v<_Up, T>)
-        expect(_Up &&__u) noexcept(std::is_nothrow_constructible_v<T, _Up>) // strengthened
+        expected(_Up &&__u) noexcept(std::is_nothrow_constructible_v<T, _Up>) // strengthened
         : m_has_value(true)
     {
         std::construct_at(std::addressof(m_value_error.m_value), std::forward<_Up>(__u));
@@ -96,7 +98,7 @@ struct expect<T,E>
 
     template <class... _Args>
         requires std::is_constructible_v<T, _Args...>
-    constexpr explicit expect(std::in_place_t, _Args &&...__args) noexcept(std::is_nothrow_constructible_v<T, _Args...>) // strengthened
+    constexpr explicit expected(std::in_place_t, _Args &&...__args) noexcept(std::is_nothrow_constructible_v<T, _Args...>) // strengthened
         : m_has_value(true)
     {
         std::construct_at(std::addressof(m_value_error.m_value), std::forward<_Args>(__args)...);
@@ -104,7 +106,7 @@ struct expect<T,E>
 
     template <class _Up, class... _Args>
         requires std::is_constructible_v<T, std::initializer_list<_Up> &, _Args...>
-    constexpr explicit expect(std::in_place_t, std::initializer_list<_Up> __il, _Args &&...__args) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<_Up> &, _Args...>) // strengthened
+    constexpr explicit expected(std::in_place_t, std::initializer_list<_Up> __il, _Args &&...__args) noexcept(std::is_nothrow_constructible_v<T, std::initializer_list<_Up> &, _Args...>) // strengthened
         : m_has_value(true)
     {
         std::construct_at(std::addressof(m_value_error.m_value), __il, std::forward<_Args>(__args)...);
@@ -114,11 +116,11 @@ struct expect<T,E>
 
     #pragma region destructors
 
-    constexpr ~expect()
+    constexpr ~expected()
         requires(std::is_trivially_destructible_v<T> && std::is_trivially_destructible_v<E>)
     = default;
 
-    constexpr ~expect()
+    constexpr ~expected()
         requires(!std::is_trivially_destructible_v<T> || !std::is_trivially_destructible_v<E>)
     {
         if (m_has_value)
@@ -158,40 +160,10 @@ private:
         std::destroy_at(std::addressof(oldval));  
     }
 
-    template <class _T1, class _T2, class... _Args>
-    static constexpr void __reinit_expected(_T1 &__newval, _T2 &__oldval, _Args &&...__args)
-    {
-        if constexpr (std::is_nothrow_constructible_v<_T1, _Args...>)
-        {
-            std::destroy_at(std::addressof(__oldval));
-            std::construct_at(std::addressof(__newval), std::forward<_Args>(__args)...);
-        }
-        else if constexpr (std::is_nothrow_move_constructible_v<_T1>)
-        {
-            _T1 __tmp(std::forward<_Args>(__args)...);
-            std::destroy_at(std::addressof(__oldval));
-            std::construct_at(std::addressof(__newval), std::move(__tmp));
-        }
-        else
-        {
-            static_assert(
-                std::is_nothrow_move_constructible_v<_T2>,
-                "To provide strong exception guarantee, T2 has to satisfy `is_nothrow_move_constructible_v` so that it can "
-                "be reverted to the previous state in case an exception is thrown during the assignment.");
-            _T2 __tmp(std::move(__oldval));
-            std::destroy_at(std::addressof(__oldval));
-            auto __trans =
-                std::__make_exception_guard([&]
-                                            { std::construct_at(std::addressof(__oldval), std::move(__tmp)); });
-            std::construct_at(std::addressof(__newval), std::forward<_Args>(__args)...);
-            __trans.__complete();
-        }
-    }
-
 public:
-    constexpr expect &operator=(const expect &) = delete;
+    constexpr expected &operator=(const expected &) = delete;
 
-    constexpr expect &operator=(const expect &__rhs) noexcept(std::is_nothrow_copy_assignable_v<T> &&
+    constexpr expected &operator=(const expected &__rhs) noexcept(std::is_nothrow_copy_assignable_v<T> &&
                                                                   std::is_nothrow_copy_constructible_v<T>) // strengthened
         requires(std::is_copy_assignable_v<T> &&
                  std::is_copy_constructible_v<T>)
@@ -213,7 +185,7 @@ public:
         return *this;
     }
 
-    constexpr expect &operator=(expect &&__rhs) noexcept(std::is_nothrow_move_assignable_v<T> &&
+    constexpr expected &operator=(expected &&__rhs) noexcept(std::is_nothrow_move_assignable_v<T> &&
                                                              std::is_nothrow_move_constructible_v<T>)
         requires(std::is_move_constructible_v<T> &&
                  std::is_move_assignable_v<T>)
@@ -237,8 +209,8 @@ public:
     }
 
     template <class _Up = T>
-    constexpr expect &operator=(_Up &&__v)
-        requires(!std::is_same_v<expect, std::remove_cvref_t<_Up>> &&
+    constexpr expected &operator=(_Up &&__v)
+        requires(!std::is_same_v<expected, std::remove_cvref_t<_Up>> &&
                  !is_unexpect_v<std::remove_cvref_t<_Up>> &&
                  std::is_constructible_v<T, _Up> &&
                  std::is_assignable_v<T &, _Up>)
@@ -295,12 +267,12 @@ public:
 
     #pragma region swap
 
-    constexpr void swap(expect &__rhs) noexcept(std::is_nothrow_move_constructible_v<T> &&
+    constexpr void swap(expected &__rhs) noexcept(std::is_nothrow_move_constructible_v<T> &&
                                                     std::is_nothrow_swappable_v<T>)
         requires(std::is_swappable_v<T> &&
                  std::is_move_constructible_v<T>)
     {
-        auto __swap_val_unex_impl = [&](expect &__with_val, expect &__with_err)
+        auto __swap_val_unex_impl = [&](expected &__with_val, expected &__with_err)
         {
             std::construct_at(std::addressof(__with_err.m_value_error.m_value), std::move(__with_val.m_value_error.m_value));
             std::destroy_at(std::addressof(__with_val.m_value_error.m_value));
@@ -335,7 +307,7 @@ public:
         }
     }
 
-    friend constexpr void swap(expect &__x, expect &__y) noexcept(noexcept(__x.swap(__y)))
+    friend constexpr void swap(expected &__x, expected &__y) noexcept(noexcept(__x.swap(__y)))
         requires requires { __x.swap(__y); }
     {
         __x.swap(__y);
@@ -586,3 +558,4 @@ private:
     bool m_has_value{false};
 };
 
+}
